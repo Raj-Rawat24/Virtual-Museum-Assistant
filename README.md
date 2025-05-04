@@ -26,5 +26,5 @@ The **Virtual Museum Assistant** is a web-based platform that allows users to ex
    ```bash
    git clone https://github.com/Raj-Rawat24/Virtual-Museum-Assistant.git
    cd Virtual-Museum-Assistant
-
+## Models and Textures are available on different websites for free. So refer the `project_structure.png` and download the models from other sources.
 # Feedback, suggestions, and contributions for further improvements are warmly welcomed.
