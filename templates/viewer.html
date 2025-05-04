@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>3D Model Viewer - {{ name }}</title>
+    <!-- Three.js Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/loaders/MTLLoader.js"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <!-- Custom Styles -->
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+            background: #121212;
+            color: white;
+        }
+        
+        #viewer-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #model-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 300px;
+            z-index: 100;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 8px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+        
+        #controls button {
+            background: #6a11cb;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        #controls button:hover {
+            background: #2575fc;
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            text-align: center;
+            transition: opacity 0.5s;
+        }
+        
+        #loading .spinner {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+        
+        #loading .progress {
+            width: 200px;
+            height: 4px;
+            background: #333;
+            margin: 10px auto;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        #loading .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #6a11cb, #2575fc);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        canvas {
+            display: block;
+        }
+        
+        .error-message {
+            color: #ff4444;
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 5px;
+        }
+        
+        .error-message button {
+            margin-top: 10px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="viewer-container">
+        <!-- Loading Screen -->
+        <div id="loading">
+            <div class="spinner"><i class="fas fa-spinner fa-spin"></i></div>
+            <p>Loading 3D Model...</p>
+            <div class="progress">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <p id="progress-text">0%</p>
+            <div id="error-message" class="error-message"></div>
+        </div>
+        
+        <!-- Model Information -->
+        <div id="model-info">
+            <h2>{{ name }}</h2>
+            <p id="model-description">Loading description...</p>
+            <button onclick="window.history.back()">
+                <i class="fas fa-arrow-left"></i> Back to Museum
+            </button>
+        </div>
+        
+        <!-- Viewer Controls -->
+        <div id="controls">
+            <button onclick="resetCamera()">
+                <i class="fas fa-expand"></i> Reset View
+            </button>
+            <button onclick="toggleRotation()" id="rotateBtn">
+                <i class="fas fa-pause"></i> Auto-Rotate: On
+            </button>
+            <button onclick="screenshot()">
+                <i class="fas fa-camera"></i> Take Screenshot
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Get model parameters from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const modelPath = decodeURIComponent(urlParams.get('model'));
+        const modelName = decodeURIComponent(urlParams.get('name')) || '3D Model';
+        
+        // Global variables
+        let scene, camera, renderer, controls, model;
+        let rotationSpeed = 2.0;
+        
+        // Initialize the 3D viewer
+        function initViewer() {
+            scene = new THREE.Scene();
+
+            // 🔥 SET BACKGROUND IMAGE INSTEAD OF COLOR
+            const loader = new THREE.TextureLoader();
+            loader.load('/static/museum.jpg', function (texture) {
+                scene.background = texture;
+            }, undefined, function (error) {
+                console.error('Error loading background texture:', error);
+            });
+            
+            // Add lights
+            const ambientLight = new THREE.AmbientLight(0x404040, 1.5);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(1, 1, 1).normalize();
+            scene.add(directionalLight);
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 5;
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ 
+                antialias: true,
+                powerPreference: "high-performance"
+            });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.getElementById('viewer-container').appendChild(renderer.domElement);
+            
+            // Add orbit controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.25;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = rotationSpeed;
+            
+            // Load the model
+            loadModel();
+            
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize);
+            
+            // Start animation loop
+            animate();
+        }
+        
+        // Load the 3D model with proper texture handling
+        function loadModel() {
+    const loadingManager = new THREE.LoadingManager(
+        () => {
+            // Loading complete
+            document.getElementById('loading').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('loading').style.display = 'none';
+            }, 500);
+        },
+        (item, loaded, total) => {
+            // Update progress
+            const percent = Math.round(loaded / total * 100);
+            document.getElementById('progress-bar').style.width = `${percent}%`;
+            document.getElementById('progress-text').textContent = `${percent}%`;
+        }
+    );
+    
+    const objLoader = new THREE.OBJLoader(loadingManager);
+    const mtlLoader = new THREE.MTLLoader(loadingManager);
+
+    // Set base paths
+    const basePath = 'static/models/';
+    const textureBasePath = 'static/textures/';
+
+    mtlLoader.setPath(basePath);
+    mtlLoader.setResourcePath(textureBasePath); // 🔥 THIS FIXES TEXTURES LOADING
+    objLoader.setPath(basePath);
+
+    // Extract model filename
+    const modelFile = modelPath.split('/').pop();
+    const mtlFile = modelFile.replace('.obj', '.mtl');
+
+    mtlLoader.load(
+        mtlFile,
+        (materials) => {
+            materials.preload();
+
+            objLoader.setMaterials(materials);
+            objLoader.load(
+                modelFile,
+                (object) => {
+                    model = object;
+                    processLoadedModel(object);
+                },
+                undefined,
+                (error) => {
+                    console.error('Error loading OBJ:', error);
+                    showError('Failed to load model. Please try again.');
+                }
+            );
+        },
+        undefined,
+        () => {
+            // If MTL loading fails
+            objLoader.load(
+                modelFile,
+                (object) => {
+                    model = object;
+                    model.traverse(child => {
+                        if (child.isMesh) {
+                            child.material = new THREE.MeshStandardMaterial({
+                                color: 0xaaaaaa,
+                                roughness: 0.8,
+                                metalness: 0.2
+                            });
+                        }
+                    });
+                    processLoadedModel(object);
+                },
+                undefined,
+                (error) => {
+                    console.error('Error loading OBJ without MTL:', error);
+                    showError('Failed to load model. Please try again.');
+                }
+            );
+        }
+    );
+}
+
+        
+        function processLoadedModel(object) {
+            // Center the model
+            const box = new THREE.Box3().setFromObject(object);
+            const center = box.getCenter(new THREE.Vector3());
+            object.position.sub(center);
+            
+            // Scale the model appropriately
+            const size = box.getSize(new THREE.Vector3()).length();
+            const scale = 5 / size;
+            object.scale.set(scale, scale, scale);
+            
+            scene.add(object);
+            
+            // Adjust camera based on model size
+            camera.position.z = size * 1.5;
+            controls.update();
+            
+            // Update model description
+            document.getElementById('model-description').textContent = 
+                urlParams.get('description') || 'No description available';
+        }
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.innerHTML = `
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>${message}</p>
+                <button onclick="window.location.reload()">
+                    <i class="fas fa-sync-alt"></i> Reload Viewer
+                </button>
+            `;
+        }
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+}
+
+        
+        // Window resize handler
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // Control functions
+        function resetCamera() {
+            if (model) {
+                const box = new THREE.Box3().setFromObject(model);
+                const size = box.getSize(new THREE.Vector3()).length();
+                camera.position.z = size * 1.5;
+            } else {
+                camera.position.z = 5;
+            }
+            controls.reset();
+        }
+        
+        function toggleRotation() {
+        const rotateBtn = document.getElementById('rotateBtn');
+    
+        if (controls.autoRotate) {
+        controls.autoRotate = false;
+        rotateBtn.innerHTML = `<i class="fas fa-play"></i> Auto-Rotate: Off`;
+      } else {
+        controls.autoRotate = true;
+        rotateBtn.innerHTML = `<i class="fas fa-pause"></i> Auto-Rotate: On`;
+             }
+        }
+
+        function screenshot() {
+    try {
+        // Manually render one more frame before capturing
+        controls.update();
+        renderer.render(scene, camera);
+
+        // Now capture the canvas correctly
+        const screenshotDataURL = renderer.domElement.toDataURL('image/png');
+
+        const link = document.createElement('a');
+        link.download = `museum-${modelName.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().slice(0,10)}.png`;
+        link.href = screenshotDataURL;
+        link.click();
+    } catch (error) {
+        console.error('Error taking screenshot:', error);
+        showError('Failed to take screenshot. Please try again.');
+    }
+}
+
+
+
+        
+        // Initialize when DOM is loaded
+        document.addEventListener('DOMContentLoaded', initViewer);
+    </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Museum</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+</head>
+<body>
+    <div class="museum-container">
+        <h1>🖼️ Virtual Museum 🏛️</h1>
+        <div id="artifact-grid" class="artifact-grid">
+            {% for artifact in artifacts %}
+            <div class="artifact-item" onclick="showDetails({
+                'name': '{{ artifact.name }}',
+                'description': '{{ artifact.description }}',
+                'modelPath': '{{ artifact.model_path }}'
+            })">
+                <img src="{{ artifact.image_path }}" alt="{{ artifact.name }}">
+                <p>{{ artifact.name }}</p>
+            </div>
+            {% endfor %}
+        </div>
+        <div id="artifact-details" class="artifact-details"></div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Payment Required</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            color: #212529; /* DARKER BODY TEXT */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+        }
+        .payment-container {
+            max-width: 500px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 12px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+        }
+        .payment-header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        .payment-header h1 {
+            color: #1d1d1d; /* DARK TITLE */
+            margin-bottom: 0.5rem;
+        }
+        .payment-header p {
+            color: #444; /* DARKER SUBTITLE */
+        }
+        .payment-body h2 {
+            color: #2b2b2b; /* DARKER H2 */
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        .payment-body p {
+            color: #333; /* PARAGRAPH TEXT DARKER */
+        }
+        .qr-container {
+            text-align: center;
+            margin: 1.5rem 0;
+            padding: 1rem;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+        .qr-container img {
+            max-width: 200px;
+            height: auto;
+        }
+        .payment-info {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            margin: 1rem 0;
+            color: #222; /* DARKER INFO TEXT */
+        }
+        #verifyBtn {
+            width: 100%;
+            padding: 12px;
+            font-size: 1rem;
+            margin-top: 1rem;
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        #verifyBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        #verifyBtn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+        #paymentMessage {
+            text-align: center;
+            margin-top: 1rem;
+            min-height: 1.5rem;
+            font-weight: bold;
+        }
+        .success {
+            color: #28a745;
+        }
+        .error {
+            color: #dc3545;
+        }
+    </style>
+</head>
+<body class="payment-page">
+    <div class="payment-container">
+        <div class="payment-header">
+            <h1><i class="fas fa-lock"></i> Payment Required</h1>
+            <p>Unlock premium 3D model viewing</p>
+        </div>
+        
+        <div class="payment-body">
+            <h2>🔒 Unlock "{{ name }}"</h2>
+            <p>Scan the QR code to complete your payment of ${{ "%.2f"|format(amount) }}</p>
+            
+            <div class="qr-container">
+                <img src="{{ url_for('static', filename='assets1/payment-qr.jpeg') }}" alt="Payment QR Code">
+            </div>
+            
+            <div class="payment-info">
+                <p><strong>Model:</strong> {{ name }}</p>
+                <p><strong>Amount:</strong> ${{ "%.2f"|format(amount) }}</p>
+                <p><small>Please include model name as payment reference</small></p>
+            </div>
+            
+            <button id="verifyBtn">
+                <i class="fas fa-check-circle"></i> I've Paid
+            </button>
+            <p id="paymentMessage"></p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('verifyBtn').addEventListener('click', verifyPayment);
+
+        async function verifyPayment() {
+            const btn = document.getElementById('verifyBtn');
+            const message = document.getElementById('paymentMessage');
+            
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+            btn.disabled = true;
+            message.innerHTML = '';
+            
+            try {
+                const response = await fetch('/verify_payment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        model: "{{ model }}",
+                        name: "{{ name }}"
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    message.innerHTML = '<span class="success"><i class="fas fa-check-circle"></i> Payment verified! Redirecting...</span>';
+                    setTimeout(() => {
+                        window.location.href = `/viewer?model={{ model|urlencode }}&name={{ name|urlencode }}`;
+                    }, 1500);
+                } else {
+                    message.innerHTML = `<span class="error"><i class="fas fa-exclamation-circle"></i> ${data.error || 'Payment not verified'}</span>`;
+                    btn.innerHTML = '<i class="fas fa-check-circle"></i> Try Again';
+                    btn.disabled = false;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                message.innerHTML = '<span class="error"><i class="fas fa-exclamation-circle"></i> Network error. Please try again.</span>';
+                btn.innerHTML = '<i class="fas fa-check-circle"></i> Try Again';
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
